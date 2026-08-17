@@ -1,0 +1,109 @@
+Update: 06 August 2026
+Notes for data wrangling from PathogenWatch output (AMR detection, plasmids, STs and other identification)
+By: Dewi Christina
+
+1. Data upload and download, report planning & management
+2. 
+3. 
+
+
+##########################################################################################
+##########################################################################################
+
+storage=storage folder based on sequencing done per-run/per-batch;
+/srv/nfs_share/<designated project>/<raw_data>/<batch>
+outputs stored in their designated batch folder.
+
+batch 1:
+/srv/nfs_share/2026_ACORNHAI/raw_data/ACORNHAI_3_22APRIL2026/ACORNHAI_3_22APRIL2026/20260422_1507_X4_FBD04135_d247130b
+batch 2:
+
+
+##########################################################################################
+All tools (if required to support PathogenWatch update) are stored in the root.
+sudo -i
+source ~/miniconda3/bin/activate
+
+1. Use https://pathogen.watch/ (instead of https://next.pathogen.watch/; seems like beta testing)
+2. New ID for PathogenWatch specialised for this project using gmail available in:
+	/report/0_notes_workflow
+3. Upload FASTA data (need to check whether they differentiate Ecli & Kleb in label)
+4. Report can be distinguished into 2:
+	4.1. QC (per batch & compiled)
+	4.2. PathogenWatch (compiled for all species and species-specific)
+	4.3. Data upload can be done per-batch (for temporary report) & cumulative
+
+5. More fasta uploads are possible by using the "+" button on the bottom-right of the project;
+	fasta upload MUST be those with PASS QC
+	0_compiled_fasta_passqc
+6. Preferably create a collection instead of downloading the CSV one by one:
+	Selected Genomes --> CREATE COLLECTION
+	CSVs from Selected Genomes = ori for keeping my sanity intact
+	CSVs from CREATE COLLECTION = collection
+
+
+##########################################################################################
+TEMPORARY
+CSVs from Selected Genomes = ori for keeping my sanity
+CSVs from CREATE COLLECTION = collection
+
+Test code to differentiate ori vs. collection result for report management on my personal computer:
+edit the name first to distinguish each file in R
+
+for i in /mnt/d/oucru/neoseap/raw_data/pw_result_test/*/*; do
+	folder_name=$(basename "$(dirname "$i")")
+	b=$(basename "$i")
+	mv "$i" "$(dirname "$i")/${folder_name}_${b}"
+done
+
+TREE of downloaded CSVs grouped by species & source after rename
+/pw_result_test$ tree
+.
+├── ecoli_collection
+│   ├── ecoli_collection_AMR Variants.csv
+│   ├── ecoli_collection_Antibiotics.csv
+│   ├── ecoli_collection_Assembly stats.csv
+│   ├── ecoli_collection_Genes.csv
+│   ├── ecoli_collection_Typing.csv
+│   └── ecoli_collection_Virulence.csv
+├── ecoli_ori
+│   ├── ecoli_ori_pathogenwatch-cgmlst.csv
+│   ├── ecoli_ori_pathogenwatch-clermontyping.csv
+│   ├── ecoli_ori_pathogenwatch-ectyper.csv
+│   ├── ecoli_ori_pathogenwatch-hclink.csv
+│   ├── ecoli_ori_pathogenwatch-metrics.csv
+│   ├── ecoli_ori_pathogenwatch-mlst.csv
+│   ├── ecoli_ori_pathogenwatch-mlst2.csv
+│   ├── ecoli_ori_pathogenwatch-plasmidfinder.csv
+│   ├── ecoli_ori_pathogenwatch-rfplus.csv
+│   ├── ecoli_ori_pathogenwatch-speciator.csv
+│   ├── ecoli_ori_pathogenwatch-stecfinder.csv
+│   ├── ecoli_ori_pathogenwatch-summary.csv
+│   └── ecoli_ori_pathogenwatch-virulencefinder.csv
+├── kleb_collection
+│   ├── kleb_collection_AMR Determinants.csv
+│   ├── kleb_collection_Antibiotics.csv
+│   ├── kleb_collection_Assembly stats.csv
+│   └── kleb_collection_Typing.csv
+└── kleb_ori
+    ├── kleb_ori_pathogenwatch-cgmlst.csv
+    ├── kleb_ori_pathogenwatch-core.csv
+    ├── kleb_ori_pathogenwatch-kaptive.csv
+    ├── kleb_ori_pathogenwatch-kleborate.csv
+    ├── kleb_ori_pathogenwatch-klebsiella-lincodes.csv
+    ├── kleb_ori_pathogenwatch-metrics.csv
+    ├── kleb_ori_pathogenwatch-mlst.csv
+    ├── kleb_ori_pathogenwatch-plasmidfinder.csv
+    ├── kleb_ori_pathogenwatch-speciator.csv
+    └── kleb_ori_pathogenwatch-summary.csv
+
+5 directories, 33 files
+
+
+THINGS TO BE CONSIDERED:
+1. Many CSV files produced for PathogenWatch output (both short- and long-type data),
+	--> need to compile and distinguish them all before downloading all of the CSV files
+2. 
+
+
+

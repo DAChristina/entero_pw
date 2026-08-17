@@ -1,0 +1,125 @@
+Update: 15 Jul 2026
+Notes for basecalling and QC analysis using GHRU-mod pipeline
+By: Dewi Christina
+
+1. basecaller & demux
+2. GHRU-mod_lambda_filter_on (use DCS2595.fasta)
+
+
+##########################################################################################
+##########################################################################################
+DC edited script for basecalling
+
+storage=storage folder based on sequencing done per-run/per-batch;
+/srv/nfs_share/<designated project>/<raw_data>/<batch>
+outputs stored in their designated batch folder.
+
+batch 1:
+/srv/nfs_share/2026_ACORNHAI/raw_data/ACORNHAI_3_22APRIL2026/ACORNHAI_3_22APRIL2026/20260422_1507_X4_FBD04135_d247130b
+batch 2:
+/srv/nfs_share/2026_ACORNHAI/raw_data/ACORN-HAI_BATCH2_5_06MAY26/ACORN-HAI_BATCH2_5_06MAY26/20260506_1543_X4_FBD04135_52f95109
+batch 3:
+
+
+##########################################################################################
+All tools stored in root.
+sudo -i
+source ~/miniconda3/bin/activate
+
+1. basecaller & demux
+navigate to <storage> in terminal first
+dorado basecaller hac pod5/ > basecalling_hac.bam && \
+dorado demux 	--output-dir output_demux \
+		--kit-name SQK-NBD114-24 \
+		--emit-fastq basecalling_hac.bam
+
+
+2. DATA PREP for pipeline input
+ls /<batch_address>/output_demux > /<R project>/raw_data/demux_batch1.csv
+Open R and generate data preparation script per-batch.
+Samplesheet for GHRU pipeline is stored in <R project>/inputs/ghru_samplesheet_batch<batch>.csv
+Samplesheet for targeted compressed file (*.fastq.gz) is stored in <R project>/inputs/ghru_compress_batch<batch>.tsv
+
+
+GHRU-mod need *.fastq.gz input instead of *.fastq (not sure why) -_-)
+navigate to /<batch_address>/output_demux then compress them all first:
+# or do a targeted file list like this based on the wetlab input
+for f in $(cat <R project>/inputs/ghru_compress_batch<batch>.tsv); do
+	gzip -kf "$f"
+done
+
+(or use while loop)
+while read -r f; do
+    gzip -k "$f"
+done < <R project>/inputs/ghru_compress_batch<batch>.tsv
+
+
+3. GHRU-mod_lambda_filter_on (use DCS2595.fasta)
+DCS (DNA control sample, DCS) = SPIKE-in control. included. in. ONT. seq. kits.
+I repeatedly asked what is it, people seem don't undertand what SPIKE is,
+OR perhaps just a small misscommunication.
+That's why the original code in Jupyter Notebook include NC_001416.1 lambda DNA.
+
+navigate to where ghru-mod is stored
+cd /srv/nfs_share/oucru_tools/GHRU-mod
+conda activate nextflow
+nextflow run main.nf \
+	--samplesheet /<R project>/inputs/ghru_samplesheet_batch<batch>.csv \
+	--outdir /<batch_address>/output_ghru-mod_lambda_filter_on \
+	--remove_contamination true \
+	--dcs_file /<R project>/inputs/DCS2595.fasta \
+	--max_memory 100.GB \
+	--max_cpus 30 \
+	--medaka_model "r1041_e82_400bps_hac_v4.2.0"
+
+note that --medaka_model "r1041_e82_400bps_hac_v4.2.0" is required.
+
+nextflow log MUST be copied to the folder's output after running GHRU-mod.
+cp /<tools directory>/GHRU-mod/.nextflow.log /<batch directory>/output_ghru-mod_lambda_filter_on/.nextflow.log
+
+ALL folders related to GHRU-mod results must be moved to NAS before AMR-plasmid-virulence factor analysis
+Link PC OUCRU to NAS first!
+sudo mount -t nfs 152.118.5.82:/volume1/GRIDION_BACKUP /mnt/nasid-acorn2-backup/
+
+mw -r /<tools directory>/GHRU-mod/work /mnt/nasid-acorn2-backup/GRIDION/<project directory>/0_GHRU-mod_work/work_batch<batch number>
+
+Compile (copy) fasta and fastq to 1 folder in NAS
+Compile fasta
+find /folder/project/batch -type f -path "*/mydata/*.txt" -exec cp {} /folder/project/compiled_txt/ \;
+
+find /mnt/nasid-acorn2-backup/GRIDION/ACORN_HAI/batches_run_compiled \
+	-type f \
+	-regextype posix-extended \
+	-regex '.*_BATCH[456]_.*' \
+	-path '*/output_ghru-mod_lambda_filter_on/assemblies/*.fastq.gz.long.fasta' \
+	-exec cp {} /mnt/nasid-acorn2-backup/GRIDION/ACORN_HAI/0_compiled_fasta/ \;
+
+Compile fastq
+find /mnt/nasid-acorn2-backup/GRIDION/ACORN_HAI/batches_run_compiled \
+	-type f \
+	-regextype posix-extended \
+	-regex '.*_BATCH[456]_.*' \
+	-path */output_ghru-mod_lambda_filter_on/fastqs/*.cleaned.fastq.gz \
+	-exec cp {} /mnt/nasid-acorn2-backup/GRIDION/ACORN_HAI/0_compiled_fastq/ \;
+
+Copy the folder to PC OUCRU's RProject inputs to simplify data analysis
+cp -R /mnt/nasid-acorn2-backup/GRIDION/ACORN_HAI/0_compiled_fasta \
+	/srv/nfs_share/2026_ACORNHAI/raw_data
+
+
+################################################################################################################
+# PREVIOUS compiled Pseudomonas aeruginosa data from ACORN study (2025) from NAS
+/mnt/nasid-acorn2-backup/GRIDION/ACORN/batches_run_compiled
+/mnt/nasid-acorn2-backup/GRIDION/ACORN/0_dc_compiled
+0_compiled_fasta_PAE
+*PAE*.fa*
+find /mnt/nasid-acorn2-backup/GRIDION/ACORN/batches_run_compiled -type f \
+	-name "*PAE*.fa*" \
+	-exec cp {} /mnt/nasid-acorn2-backup/GRIDION/ACORN/0_dc_compiled/0_compiled_fasta_PAE/ \;
+
+0_compiled_fastq_PAE
+*PAE*.fastq*
+
+I create a list for available fasta & fastq files:
+ls > /home/acorn2/Downloads/list_ACORN_PAE_fasta_files.txt
+ls > /home/acorn2/Downloads/list_ACORN_PAE_fastq_files.txt

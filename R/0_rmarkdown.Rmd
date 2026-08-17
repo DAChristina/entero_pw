@@ -1,0 +1,206 @@
+---
+title: "Pathogenwatch Genomic Report"
+subtitle: "E. coli and Klebsiella pneumoniae"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    code_folding: hide
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE,
+                      message=FALSE, fig.align="center")
+library(tidyverse)
+library(kableExtra)
+library(ComplexHeatmap)
+library(patchwork)
+
+e_path <- "../raw_data/pw_result_test/ecoli_ori/"
+k_path <- "../raw_data/pw_result_test/kleb_ori/"
+
+# Load interp files
+e_qc <- read.csv(paste0(e_path, "ecoli_interp_qc_assembly.csv"))
+e_typing <- read.csv(paste0(e_path, "ecoli_interp_typing.csv"))
+e_amr <- read.csv(paste0(e_path, "ecoli_interp_amr.csv"))
+e_vir <- read.csv(paste0(e_path, "ecoli_interp_virulence.csv"))
+e_plasmid <- read.csv(paste0(e_path, "ecoli_interp_plasmids.csv"))
+
+k_qc <- read.csv(paste0(k_path, "kleb_interp_qc_assembly.csv"))
+k_typing <- read.csv(paste0(k_path, "kleb_interp_typing.csv"))
+k_amr <- read.csv(paste0(k_path, "kleb_interp_amr.csv"))
+k_plasmid <- read.csv(paste0(k_path, "kleb_interp_plasmids.csv"))
+
+# Combined QC (overall)
+combined_qc <- dplyr::bind_rows(
+  e_qc %>% mutate(species = "E. coli"),
+  k_qc %>% mutate(species = "K. pneumoniae")
+)
+```
+
+# 1. Overview
+
+```{r overview-table}
+combined_qc %>%
+  count(species, qc) %>%
+  kbl(caption = "Table 1. Isolate count by species and QC status") %>%
+  kable_styling(bootstrap_options = c("striped","hover","condensed"),
+                full_width = FALSE)
+```
+
+# 2. Assembly Quality (Overall)
+
+```{r assembly-plot}
+combined_qc %>%
+  ggplot(aes(x = species, y = n50, fill = species)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.1, size = 2) +
+  labs(title = "N50 by species", x = NULL, y = "N50 (bp)") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+# 3. Species Confirmation (Overall)
+
+```{r species-confirm}
+combined_qc %>%
+  select(genome_name, species, species_name, mash_distance) %>%
+  kbl(caption = "Table 2. Species confirmation via Mash distance") %>%
+  kable_styling(bootstrap_options = c("striped","hover"))
+```
+
+# 4. Sequence Typing (Overall, labelled by species)
+
+```{r mlst-table}
+bind_rows(
+  e_typing %>% select(genome_id, st_achtman, st_pasteur, phylogroup,
+                       serotype) %>%
+               mutate(species = "E. coli"),
+  k_typing %>% select(genome_id, st, K_locus, K_confidence,
+                       O_locus, clonal_group) %>%
+               mutate(species = "K. pneumoniae")
+) %>%
+  kbl(caption = "Table 3. MLST and lineage typing by species") %>%
+  kable_styling(bootstrap_options = c("striped","hover","condensed"))
+```
+
+# 5. AMR Profiles (Overall)
+
+```{r amr-heatmap}
+# Combine AMR matrices — keep common columns only
+common_amr <- intersect(colnames(e_amr), colnames(k_amr))
+
+amr_combined <- bind_rows(
+  e_amr %>% select(genome_id, any_of(common_amr)) %>%
+            mutate(species = "E. coli"),
+  k_amr %>% select(genome_id, any_of(common_amr)) %>%
+            mutate(species = "K. pneumoniae")
+)
+
+# Heatmap
+mat <- amr_combined %>%
+  select(-genome_id, -species) %>%
+  as.matrix()
+rownames(mat) <- amr_combined$genome_id
+
+Heatmap(mat,
+        name             = "Resistance",
+        col              = c("0" = "grey95", "1" = "#b2182b"),
+        column_names_rot = 45,
+        border           = TRUE,
+        rect_gp          = gpar(col = "white", lwd = 0.5))
+```
+
+# 6. E. coli — Species-Specific Analyses
+
+## 6.1 Phylogroup & Serotype
+
+<!-- ```{r ecoli-typing} -->
+<!-- e_typing %>% -->
+<!--   select(genome_id, st_achtman, st_pasteur, phylogroup, -->
+<!--          o_type, h_type, serotype, stx_type) %>% -->
+<!--   kbl(caption = "Table 4. E. coli typing results") %>% -->
+<!--   kable_styling(bootstrap_options = c("striped","hover","condensed")) -->
+<!-- ``` -->
+
+## 6.2 Virulence Genes
+
+```{r ecoli-virulence}
+vir_mat <- e_vir %>%
+  select(-genome_id, -genome_name) %>%
+  as.matrix()
+rownames(vir_mat) <- e_vir$genome_id
+
+Heatmap(vir_mat,
+        name             = "Virulence",
+        col              = c("0" = "grey95", "1" = "#2166ac"),
+        column_names_rot = 45,
+        border           = TRUE,
+        rect_gp          = gpar(col = "white", lwd = 0.5))
+```
+
+# 7. Klebsiella — Species-Specific Analyses
+
+## 7.1 K/O Locus & Lineage
+
+```{r kleb-typing}
+k_typing %>%
+  select(genome_id, st, K_locus, K_confidence, K_identity,
+         O_locus, O_confidence, lin_code, clonal_group,
+         virulence_score, resistance_score) %>%
+  kbl(caption = "Table 5. Klebsiella typing results") %>%
+  kable_styling(bootstrap_options = c("striped","hover","condensed"))
+```
+
+## 7.2 Virulence Scores
+
+```{r kleb-virulence}
+k_typing %>%
+  select(genome_id, virulence_score, resistance_score,
+         yersiniabactin, colibactin, aerobactin,
+         salmochelin, rmp_adc, rmp_a2) %>%
+  mutate(convergent = if_else(virulence_score >= 3 &
+                               resistance_score >= 2, "Yes", "No")) %>%
+  kbl(caption = "Table 6. Klebsiella virulence and convergence flags") %>%
+  kable_styling(bootstrap_options = c("striped","hover","condensed"))
+```
+
+# 8. Plasmid Replicons (Overall)
+
+```{r plasmid-heatmap}
+plasmid_combined <- bind_rows(
+  e_plasmid %>% mutate(species = "E. coli"),
+  k_plasmid %>% mutate(species = "K. pneumoniae")
+) %>%
+  mutate(across(-c(genome_id, genome_name, species),
+                ~ replace_na(., 0L)))
+
+plas_mat <- plasmid_combined %>%
+  select(-genome_id, -genome_name, -species) %>%
+  as.matrix()
+rownames(plas_mat) <- plasmid_combined$genome_id
+
+row_ha <- rowAnnotation(
+  Species = plasmid_combined$species,
+  col = list(Species = c("E. coli"       = "#2166ac",
+                          "K. pneumoniae" = "#b2182b"))
+)
+
+Heatmap(plas_mat,
+        name             = "Replicon",
+        col              = c("0" = "grey95", "1" = "#4d9221"),
+        right_annotation = row_ha,
+        column_names_rot = 45,
+        border           = TRUE,
+        rect_gp          = gpar(col = "white", lwd = 0.5))
+```
+
+# 9. Session Info
+
+```{r session}
+sessionInfo()
+```
